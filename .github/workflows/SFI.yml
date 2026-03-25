@@ -2,8 +2,8 @@ name: Build SFI
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '10 15 * * *'
+#  schedule:
+#    - cron: '10 15 * * *'
 
 permissions:
   contents: write  # 重要：允许创建 release
@@ -16,8 +16,8 @@ jobs:
     steps:
       - name: set version
         run: |
-          echo "SING_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | perl -ne 'if(/"tag_name":\s*"v([0-9a-zA-Z\.-]+)"/){ print "$1\n"; last }')" >> $GITHUB_ENV
-          echo "SING_IOS_VERSION=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | perl -ne 'if(/"tag_name":\s*"v([0-9a-zA-Z\.-]+)"/){ print "$1\n"; last }')" >> $GITHUB_ENV
+          echo "SING_VERSION=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -sL https://api.github.com/repos/SagerNet/sing-box/releases/latest | perl -ne 'if(/"tag_name":\s*"v([0-9a-zA-Z\.-]+)"/){ print "$1\n"; last }')" >> $GITHUB_ENV
+          echo "SING_IOS_VERSION=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -sL https://api.github.com/repos/${{ github.actor }}/${{ github.repository }}/releases/latest | perl -ne 'if(/"tag_name":\s*"v([0-9a-zA-Z\.-]+)"/){ print "$1\n"; last }')" >> $GITHUB_ENV
         shell: bash
 
       - name: set variables

@@ -15,13 +15,38 @@ on:
         options:
           - 'true'
           - 'false'
+      update_apple:
+        description: '是否重新拉取最新 sing-box-for-apple 仓库?'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      run_build:
+        description: '是否编译 原版 ?'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      run_build_reF1nd:
+        description: '是否编译 reF1nd ?'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
 
 permissions:
   contents: write  # 重要：允许创建 release
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout this repo
@@ -35,6 +60,7 @@ jobs:
       - name: Setup Xcode stable
         run: |-
           sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version >> $GITHUB_STEP_SUMMARY
 
 
       - name: Install ldid (via brew)
@@ -42,21 +68,30 @@ jobs:
           brew install ldid
 
       - name: Build TIPA
+        if: ${{ inputs.run_build == 'true' }}
         run: |
+          set -ex
+
           cd $HOME
 
           echo "sing-box-v${{ inputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
           git clone -b v${{ inputs.tag_name }} --recurse-submodules --depth 1 https://github.com/SagerNet/sing-box.git
+
+          if [ "${{ inputs.update_apple }}" = "true" ]; then
+            rm -rf sing-box/clients/apple
+            git clone --recurse-submodules --depth 1 https://github.com/SagerNet/sing-box-for-apple.git sing-box/clients/apple
+          fi
+
+          export XCODEPROJ_NAME=sing-box
+          export APPLICATION_NAME=sing-box
+          export SCHEME_NAME=SFI
+
           cd $HOME/sing-box
 
           make lib_install
           export PATH="$PATH:$(go env GOPATH)/bin"
           go run ./cmd/internal/build_libbox -target apple -platform ios
           mv Libbox.xcframework clients/apple
-
-          export XCODEPROJ_NAME=sing-box
-          export APPLICATION_NAME=sing-box
-          export SCHEME_NAME=SFI
 
           cd clients/apple
 
@@ -86,12 +121,80 @@ jobs:
           cd ${GITHUB_WORKSPACE}
           echo -e "SHA256 Checksum: \n$(sha256sum ${APPLICATION_NAME}-${{ inputs.tag_name }}.tipa)" >> $GITHUB_STEP_SUMMARY
 
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          rm -rf ~/sing-box
+
+      - name: Build TIPA reF1nd
+        if: ${{ inputs.run_build_reF1nd == 'true' }}
+        run: |
+          set -ex
+
+          cd $HOME
+
+          echo "sing-box-reF1nd-v${{ inputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          git clone -b v${{ inputs.tag_name }}-reF1nd --recurse-submodules --depth 1 https://github.com/reF1nd/sing-box.git
+
+          if [ "${{ inputs.update_apple }}" = "true" ]; then
+            rm -rf sing-box/clients/apple
+            git clone --recurse-submodules --depth 1 https://github.com/SagerNet/sing-box-for-apple.git sing-box/clients/apple
+          fi
+
+          export XCODEPROJ_NAME=sing-box
+          export APPLICATION_NAME=sing-box
+          export SCHEME_NAME=SFI
+
+          cd $HOME/sing-box
+
+          make lib_install
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          go run ./cmd/internal/build_libbox -target apple -platform ios
+          mv Libbox.xcframework clients/apple
+
+          cd clients/apple
+
+          xcodebuild \
+            -project $XCODEPROJ_NAME.xcodeproj \
+            -scheme $SCHEME_NAME \
+            -destination 'generic/platform=iOS' \
+            -configuration Debug \
+            -sdk iphoneos \
+            build install \
+            INFOPLIST_KEY_CFBundleDisplayName="${APPLICATION_NAME}-reF1nd" \
+            PRODUCT_BUNDLE_IDENTIFIER="io.nekohasekai.sfavt-reF1nd" \
+            STRIP_INSTALLED_PRODUCT=NO \
+            ARCHS=arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=NO \
+            ENABLE_BITCODE=NO \
+            DSTROOT=packages/
+
+          ldid -SSFI/SFI.entitlements packages/Applications/$APPLICATION_NAME.app/$APPLICATION_NAME
+          ldid -SExtension/Extension.entitlements packages/Applications/$APPLICATION_NAME.app/PlugIns/Extension.appex/Extension
+          ldid -SIntentsExtension/IntentsExtension.entitlements packages/Applications/$APPLICATION_NAME.app/Extensions/IntentsExtension.appex/IntentsExtension
+
+          mkdir -p packages/Payload
+          cp -rp packages/Applications/$APPLICATION_NAME.app packages/Payload
+          cd packages
+          zip -qr $APPLICATION_NAME.tipa Payload
+          mv $APPLICATION_NAME.tipa ${GITHUB_WORKSPACE}/${APPLICATION_NAME}-reF1nd-${{ inputs.tag_name }}.tipa
+          cd ${GITHUB_WORKSPACE}
+          echo -e "SHA256 Checksum: \n$(sha256sum ${APPLICATION_NAME}-reF1nd-${{ inputs.tag_name }}.tipa)" >> $GITHUB_STEP_SUMMARY
+
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          rm -rf ~/sing-box
+
       - name: Create Release and Upload TIPA
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.tag_name }}
           name: ${{ inputs.tag_name }}
           prerelease: ${{ inputs.prerelease == 'true' }}
-          files: sing-box-${{ inputs.tag_name }}.tipa
+          files: sing-box-*.tipa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete Old Workflows
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          retain_days: 7
+          keep_minimum_runs: 7
