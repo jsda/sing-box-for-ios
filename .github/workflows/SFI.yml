@@ -36,7 +36,7 @@ jobs:
 
       - name: Setup Go
         if: ${{ env.SING_VERSION_MATCH != 'true' }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ^1.25
 
@@ -98,7 +98,7 @@ jobs:
 
       - name: Create Release and Upload TIPA
         if: ${{ env.SING_VERSION_MATCH != 'true' }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ env.SING_VERSION }}
           name: ${{ env.SING_VERSION }}
