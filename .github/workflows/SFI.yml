@@ -36,7 +36,7 @@ jobs:
 
       - name: Setup Go
         if: ${{ env.SING_VERSION_MATCH != 'true' }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ^1.25
 
