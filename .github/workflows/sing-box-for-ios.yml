@@ -46,7 +46,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: macos-latest
 
     steps:
       - name: Checkout this repo
@@ -55,7 +55,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: ^1.25
+          go-version: ^1.26
 
       - name: Setup Xcode stable
         run: |-
